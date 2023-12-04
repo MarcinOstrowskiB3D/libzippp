@@ -407,36 +407,57 @@ int ZipArchive::close(void) {
         if(bufferData!=nullptr && (mode==New || mode==Write)) {
             int srcOpen = zip_source_open(zipSource);
             if(srcOpen==0) {
-                void* sourceBuffer = *bufferData;
+				void* sourceBuffer = *bufferData;
                 void* tempBuffer = sourceBuffer;
-                zip_int64_t increment = 1024;
-                zip_int64_t tempBufferSize = bufferLength;
-                zip_int64_t read = zip_source_read(zipSource, tempBuffer, tempBufferSize);
-                zip_int64_t totalRead = 0;
-                while(read>0) {
-                    totalRead += read;
-                    tempBufferSize -= read;
-                    if(tempBufferSize<=0) {
-                        zip_int64_t newLength = bufferLength + increment;
-                        sourceBuffer = realloc(sourceBuffer, newLength * sizeof(char));
-                        if(sourceBuffer==nullptr) {
-                            Helper::callErrorHandlingCallback(zipHandle, "can't read back from source: unable to extend buffer\n", errorHandlingCallback);
-                            return LIBZIPPP_ERROR_MEMORY_ALLOCATION;
-                        }
 
-                        tempBuffer = static_cast<char*>(sourceBuffer)+bufferLength;
-                        tempBufferSize = increment;
-                        bufferLength = newLength;
-                    } else {
-                        tempBuffer = static_cast<char*>(tempBuffer)+read;
-                    }
-                    read = zip_source_read(zipSource, tempBuffer, tempBufferSize);
+                zip_source_seek(zipSource, 0, SEEK_END);
+                const auto size = zip_source_tell(zipSource);
+                zip_source_seek(zipSource, 0, SEEK_SET);
+
+                sourceBuffer = realloc(sourceBuffer, size * sizeof(char));
+                if (sourceBuffer == nullptr) {
+                  Helper::callErrorHandlingCallback(
+                      zipHandle,
+                      "can't read back from source: unable to extend buffer\n",
+                      errorHandlingCallback);
+                  return LIBZIPPP_ERROR_MEMORY_ALLOCATION;
                 }
+
+                zip_int64_t read =
+                    zip_source_read(zipSource, sourceBuffer, size);
+				
+                // void* sourceBuffer = *bufferData;
+                // void* tempBuffer = sourceBuffer;
+                // zip_int64_t increment = 1024;
+                // zip_int64_t tempBufferSize = bufferLength;
+                // zip_int64_t read = zip_source_read(zipSource, tempBuffer, tempBufferSize);
+                // zip_int64_t totalRead = 0;
+                // while(read>0) {
+                    // totalRead += read;
+                    // tempBufferSize -= read;
+                    // if(tempBufferSize<=0) {
+                        // zip_int64_t newLength = bufferLength + increment;
+                        // sourceBuffer = realloc(sourceBuffer, newLength * sizeof(char));
+                        // if(sourceBuffer==nullptr) {
+                            // Helper::callErrorHandlingCallback(zipHandle, "can't read back from source: unable to extend buffer\n", errorHandlingCallback);
+                            // return LIBZIPPP_ERROR_MEMORY_ALLOCATION;
+                        // }
+
+                        // tempBuffer = static_cast<char*>(sourceBuffer)+bufferLength;
+                        // tempBufferSize = increment;
+                        // bufferLength = newLength;
+                    // } else {
+                        // tempBuffer = static_cast<char*>(tempBuffer)+read;
+                    // }
+                    // read = zip_source_read(zipSource, tempBuffer, tempBufferSize);
+                // }
+				
+				
 
                 zip_source_close(zipSource);
 
                 *bufferData = sourceBuffer;
-                bufferLength = totalRead;
+                bufferLength = read;
             } else {
                 Helper::callErrorHandlingCallback((zip*)nullptr, "can't read back from source: changes were not pushed in the buffer\n", errorHandlingCallback);
                 res_code = LIBZIPPP_ERROR_HANDLE_FAILURE;
